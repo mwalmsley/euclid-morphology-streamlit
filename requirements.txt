@@ -1,0 +1,5 @@
+numpy
+pandas
+# pillow
+# matplotlib
+# conda activate streamlit, pip install streamlit
