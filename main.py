@@ -257,7 +257,7 @@ st.set_page_config(
 
 @st.cache_data
 def load_data():
-    df = pd.read_parquet('/home/walml/repos/euclid-morphology-streamlit/morphology_catalogue_minimal.parquet')
+    df = pd.read_parquet('morphology_catalogue_minimal.parquet')
 
     df = df.dropna(subset=['has-spiral-arms_yes_fraction'])  # temp, only look at featured galaxies (new slider needed?)
     # max out cutout size, don't want to blow up bandwidth
