@@ -74,8 +74,7 @@ class Questions():
 # questions, each with answers
 # answers, each with value and next question
 
-# esasky example
-# https://sky.esa.int/esasky/?target=61.091466763768565%20-47.95083211877482&hips=Q1-EDFS-R4-PNG-RGB&fov=0.24313710346433015&projection=TAN&cooframe=J2000&sci=false&lang=en&euclid_image=EDFS
+
 
 def interactive_galaxies(df):
 
@@ -171,24 +170,56 @@ def display_galaxies_via_streamlit(df, ncols=4, width=200):
 
 def display_galaxies_via_html(df):
     # https://storage.googleapis.com/zootasks_test_us/euclid/q1_v5/cutouts_jpg_gz_arcsinh_vis_y/102018667/102018667_NEG585598010511040774_gz_arcsinh_vis_y.jpg
-    image_urls = get_urls(df)
-    # image_urls = df['url']
+    df['url'] = get_urls(df)
 
     st.markdown("""
         <style>
         img:hover {
-            border: 5px solid #3498db;
+            border: 5px solid #FF4B4B;
             border-radius: 5px;
+        }
+        img {
+                margin: 3px;
+                width: 200px;
+        }
+        .galaxy {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                align-items: center;
+                margin: 0 auto;
+                padding: 0;
+                list-style: none;
+        }
+        input {
+            background-color: #FF4B4B;
+            border: none;
+            color: white;
+            text-align: center;
         }
         </style>
         """, unsafe_allow_html=True)
 
-    opening_html = '<div style=display:flex;flex-wrap:wrap>'
+    # opening_html = '<div style=display:flex;flex-wrap:wrap>'
+    # closing_html = '</div>'
+    opening_html = '<div class="galaxy">'
     closing_html = '</div>'
     # child_html = [f'<a href="{url}"><img src="{url}" style=margin:3px;width:200px;></img></a>' for url in image_urls]
-    child_html = [
-        f'<div><img src="{url}" style=margin:3px;width:200px;></img><button>test</button></div>'
-        for url in image_urls]
+    child_html = []
+    for _, row in df.iterrows():
+        child_html += [
+            f'''
+                <ul>
+                    <a href={row['url']}><img src="{row['url']}";></img></a>
+                    <div>
+                    <center>
+                        <a href={get_legacy_url(row['right_ascension'], row['declination'])}>
+                            <input type="submit" value=" {row['right_ascension']:.4f}, {row['declination']:.4f} "></input>
+                        </a>
+                        </center>
+                    </div>
+                </ul>'''
+        ]
 
     gallery_html = opening_html
     for child in child_html:
@@ -268,6 +299,31 @@ def load_data():
     df['cutout_width_arcsec'] = df['cutout_width_arcsec'].clip(upper=130)  # 112 = 90th pc, 147 = 95th
     return df
 
+def get_field(declination):
+    if declination > 40:
+        return 'EDFN'
+    elif declination > -20:
+        return 'TODO'  # not on esa sky
+    elif declination < -40:
+        return 'EDFF'
+    else:
+        return 'EDFS'
+
+def get_esasky_url(ra, dec):
+    logging.info(f'ra: {ra}, dec: {dec}')
+    # hips_name = 'Q1-EDFS-R4-PNG-RGB'
+    image_name = get_field(dec)
+    # esasky example
+# https://sky.esa.int/esasky/?target=61.091466763768565%20-47.95083211877482&hips=Q1-EDFS-R4-PNG-RGB&fov=0.24313710346433015&projection=TAN&cooframe=J2000&sci=false&lang=en&euclid_image=EDFS
+
+    url = f'https://sky.esa.int/esasky/?target={ra}%20{dec}&hips=Q1-{image_name.upper()}-R4-PNG-RGB&fov=0.01&projection=TAN&cooframe=J2000&sci=false&lang=en&euclid_image={image_name}'
+    logging.info(url)
+    return url
+
+def get_legacy_url(ra, dec):
+    # https://www.legacysurvey.org/viewer?ra=168.0520&dec=27.6248&layer=ls-dr10&zoom=16
+    url = f'https://www.legacysurvey.org/viewer?ra={ra}&dec={dec}&layer=ls-dr10&zoom=16'
+    return url
 
 if __name__ == '__main__':
 

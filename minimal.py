@@ -6,7 +6,8 @@ if __name__ == '__main__':
         'right_ascension',
         'declination',
         'id_str',
-        # 'segmentation_area',
+        'segmentation_area',
+        'mag_segmentation',
         'smooth-or-featured_smooth_fraction',
         'smooth-or-featured_featured-or-disk_fraction',
         'smooth-or-featured_problem_fraction',
@@ -57,14 +58,34 @@ if __name__ == '__main__':
         'warning_galaxy_fails_training_cuts'
     ]
 
-    df = pd.read_parquet('/media/walml/alpha/euclid/gz_v5_q1/morphology_catalogue.parquet')
+    # df = pd.read_parquet('/media/walml/alpha/euclid/gz_v5_q1/morphology_catalogue.parquet')
+    df = pd.read_parquet('morphology_catalogue.parquet')
     # print('\n'.join(df.columns.values))
     df = df[cols]
-
-    df.to_parquet('/media/walml/alpha/euclid/gz_v5_q1/morphology_catalogue_minimal.parquet', index=False) 
+    print(len(df))
+    # df.to_parquet('/media/walml/alpha/euclid/gz_v5_q1/morphology_catalogue_minimal.parquet', index=False) 
     df.to_parquet('morphology_catalogue_minimal.parquet', index=False)    
     # print(df['spiral-arm-count_1_fraction'].isna().mean())
     # print(df['id_str'])
     
     import numpy as np
     print(np.percentile(df['cutout_width_arcsec'], 90))
+
+    def get_field(declination):
+        if declination > 40:
+            return 'EDFN'
+        elif declination > -20:
+            return 'TODO'  # not on esa sky
+        elif declination < -40:
+            return 'EDFF'
+        else:
+            return 'EDFS'
+
+    print(df.columns.values)
+    from matplotlib import pyplot as plt
+    df['tile_index'] = df['id_str'].apply(lambda x: x.split('_')[2])
+    dfs = df.sample(10000)
+    dfs['field'] = dfs['declination'].apply(get_field)
+    plt.scatter(dfs['right_ascension'], dfs['declination'], c=dfs['field'].apply(lambda x: {'EDFN': 'r', 'EDFF': 'b', 'EDFS': 'g', 'TODO': 'k'}[x]))
+    # plt.hist(df.sample(10000)['tile_index'], bins=100)
+    plt.show()
