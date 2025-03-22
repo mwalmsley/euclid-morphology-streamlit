@@ -1,191 +1,194 @@
 import json
 import logging
+from copy import deepcopy
 
 import streamlit as st
 import numpy as np
 import pandas as pd
-# import matplotlib.pyplot as plt
-# import matplotlib as mpl
-# import tensorflow as tf
-# import tensorflow_probability as tfp
-# from PIL import Image
 
 def main(df):
     st.title('Galaxy Zoo Euclid')
-    st.subheader('by Mike Walmsley ([@mike\_walmsley\_](https://twitter.com/mike_walmsley_))')
+    st.subheader('by Mike Walmsley')
 
     st.markdown(
     """
-    
-    <br><br/>
-    Galaxy Zoo Euclid includes deep learning classifications for all galaxies. 
-
-    Our model learns from volunteers and predicts posteriors for every Galaxy Zoo question.
+    Galaxy Zoo Euclid includes deep learning classifications for all galaxies. Our model learns from volunteers and predicts answers for every Galaxy Zoo question.
 
     Explore the predictions using the filters on the left. Do you agree with the model?
 
-    To read more about how the model works, click below.
-
-    """
-    , unsafe_allow_html=True)
-    should_tell_me_more = st.button('Tell me more')
-    if should_tell_me_more:
-        tell_me_more()
-        st.markdown('---')
-    else:
-        st.markdown('---')
-        interactive_galaxies(df)
-
-
-def tell_me_more():
-    st.title('Building the Model')
-
-    st.button('Back to galaxies')  # will change state and hence trigger rerun and hence reset should_tell_me_more
-
-    st.markdown("""
-    We require a model which can:
-    - Learn efficiently from volunteer responses of varying (i.e. heteroskedastic) uncertainty
-    - Predict posteriors for those responses on new galaxies, for every question
-
-    In [previous work](https://arxiv.org/abs/1905.07424), we modelled volunteer responses as being binomially distributed and trained our model to make maximum likelihood estimates using the loss function:
-    """)
-
-    st.latex(
-    """
-    \mathcal{L} = k \log f^w(x) + (N-k) \log(1-f^w(x))
+    To read more about how the model works, check out the [Scaling Laws preprint]() and the [Euclid paper]().
     """
     )
-    st.markdown(
-    r"""
-    where, for some target question, k is the number of responses (successes) of some target answer, N is the total number of responses (trials) to all answers, and $f^w(x) = \hat{\rho}$ is the predicted probability of a volunteer giving that answer.
-    """
-    )
-   
-    st.markdown(
-    r"""
-    This binomial assumption, while broadly successful, broke down for galaxies with vote fractions k/N close to 0 or 1, where the Binomial likelihood is extremely sensitive to $f^w(x)$, and for galaxies where the question asked was not appropriate (e.g. predict if a featureless galaxy has a bar). 
-    
-    Instead, in our latest work, the model predicts a distribution 
-    """)
+    interactive_galaxies(df)
 
-    st.latex(r"""
-    f^w(x) = p(\rho|f^w(x))
-    """)
-    
-    st.markdown(r"""
-    and $\rho$ is then drawn from that distribution.
-    
-    For binary questions, one could use the Beta distribution (being flexible and defined on the unit interval), and predict the Beta distribution parameters $f^w(x) = (\hat{\alpha}, \hat{\beta})$ by minimising
 
-    """)
+class Questions():
+        
+        def __init__(self, branch):
 
-    st.latex(
-    r"""
-        \mathcal{L} = \int Bin(k|\rho, N) Beta(\rho|\alpha, \beta) d\alpha d\beta    
-    """
-    )
-    st.markdown(r"""
+            branches = {
+                'smooth': ['smooth-or-featured', 'how-rounded', 'edge-on-bulge', 'merging'],
+                'featured': ['smooth-or-featured', 'disk-edge-on', 'bar', 'has-spiral-arms', 'bulge-size', 'spiral-arm-count', 'spiral-winding', 'merging'],
+                'problem': ['smooth-or-featured', 'problem', 'artifact']
+            }
+            selected_questions = branches[branch]
 
-    where the Binomial and Beta distributions are conjugate and hence this integral can be evaluated analytically.
+            question_dict = {
+                'smooth-or-featured': {'smooth': 'merging', 'featured-or-disk': 'disk-edge-on', 'problem': 'problem'},
+                'problem': {'star': None, 'artifact': None, 'zoom': None},
+                'artifact': {'scattered': None, 'diffraction': None, 'ray': None, 'saturation': None, 'other': None, 'ghost': None},
 
-    In practice, we would like to predict the responses to questions with more than two answers, and hence we replace each distribution with its multivariate counterpart; Beta($\rho|\alpha, \beta$) with Dirichlet($\vec{\rho}|\vec{\alpha})$, and Binomial($k|\rho, N$) with Multinomial($\vec{k}|\vec{\rho}, N$).
-    """)
-    
-    st.latex(r"""
-     \mathcal{L}_q = \int Multi(\vec{k}|\vec{\rho}, N) Dirichlet(\vec{\rho}| \vec{\alpha}) d\vec{\alpha}
-    """)
-    
-    st.markdown(r"""
-    where $\vec{k}, \vec{\rho}$ and $\vec{\alpha}$ are now all vectors with one element per answer. 
+                'how-rounded': {'round': 'edge-on-bulge', 'in-between': 'edge-on-bulge', 'cigar-shaped': 'edge-on-bulge'},
+                'edge-on-bulge': {'boxy': 'merging', 'none': 'merging', 'rounded': 'merging'},
 
-    Using this loss function, our model can predict posteriors with excellent calibration.
+                'disk-edge-on': {'yes': 'merging', 'no': 'bar'},
+                'bar': {'strong': 'spiral-arm-count', 'weak': 'spiral-arm-count', 'no': 'spiral-arm-count'},
+                'has-spiral-arms': {'yes': 'spiral-arm-count', 'no': 'spiral-arm-count'},
+                'spiral-arm-count': {'1': 'spiral-winding', '2': 'spiral-winding', '3': 'spiral-winding', '4': 'spiral-winding'},
+                'spiral-winding': {'tight': 'merging', 'medium': 'merging', 'loose': 'merging'},
+                'bulge-size': {'none': 'merging', 'small': 'merging', 'moderate': 'merging', 'large': 'merging', 'dominant': 'merging'},
 
-    For the final GZ DECaLS predictions, I actually use an ensemble of models, and apply active learning - picking the galaxies where the models confidently disagree - to choose the most informative galaxies to label with Galaxy Zoo. Check out the paper for more.
-    
-    """)
+                'merging': {'merger': None, 'major-disturbance': None, 'minor-disturbance': None, 'none': None}
+            }
+            question_dict = {k: v for k, v in question_dict.items() if k in selected_questions}
 
-    st.button('Back to galaxies', key='back_again')  # will change state and hence trigger rerun and hence reset should_tell_me_more
+            question_values = deepcopy(question_dict)
+            for q, answers in question_dict.items():
+                for a in answers.keys():
+                    question_values[q][a] = np.array([0, 1])
+            logging.warning(question_dict)
+            logging.info(question_values)
+            
+            self.question_dict = question_dict
+            self.question_values = question_values
 
+        def update_slider(self, question, answer, value):
+            self.question_values[question][answer] = value
+
+
+
+
+        
+
+
+# questions, each with answers
+# answers, each with value and next question
+
+# esasky example
+# https://sky.esa.int/esasky/?target=61.091466763768565%20-47.95083211877482&hips=Q1-EDFS-R4-PNG-RGB&fov=0.24313710346433015&projection=TAN&cooframe=J2000&sci=false&lang=en&euclid_image=EDFS
 
 def interactive_galaxies(df):
-    questions = {
-        'bar': ['strong', 'weak', 'no'], 
-        'has-spiral-arms': ['yes', 'no'],
-        'spiral-arm-count': ['1', '2', '3', '4'],
-        'spiral-winding': ['tight', 'medium', 'loose'],
-        'merging': ['merger', 'major-disturbance', 'minor-disturbance', 'none']
-    }
-    # could make merging yes/no
 
     st.sidebar.markdown('# Choose Your Galaxies')
 
-    current_selection = {}
-    for question, answers in questions.items():
-        valid_to_select = True
-        st.sidebar.markdown("# " + question.replace('-', ' ').capitalize() + '?')
+    interest = st.sidebar.radio("I'm interested in...", ['Featured galaxies', 'Smooth galaxies', 'Everything else'], key='interest')
+    branch_renamer = {
+        'Featured galaxies': 'featured',
+        'Smooth galaxies': 'smooth',
+        'Everything else': 'problem'
+    }
+    branch = branch_renamer[interest]
 
-        # control valid_to_select depending on if question is relevant
-        if question.startswith('spiral-'):
-            has_spiral_answer, has_spiral_mean = current_selection.get('has-spiral-arms', [None, None])
-            # logging.info(f'has_spiral limits: {has_spiral_mean}')
-            if has_spiral_answer == 'yes':
-                valid_to_select = np.min(has_spiral_mean) > 0.5
-            else:
-                valid_to_select = np.min(has_spiral_mean) < 0.5
+    questions = Questions(branch)
 
-        if valid_to_select:
-            selected_answer = st.sidebar.selectbox('Answer', answers, format_func=lambda x: x.replace('-',' ').capitalize(), key=question+'_select')
-            selected_mean = st.sidebar.slider(
-                label='Vote Fraction',
-                value=[.0, 1.],
-                key=question+'_mean')
-            current_selection[question] = (selected_answer, selected_mean)
-            # and sort by confidence, for now
-        else:
-            st.sidebar.markdown('*To use this filter, set "Has Spiral Arms = Yes"to > 0.5*'.format(question))
-            current_selection[question] = None, None
+    # work out which to show by always showing first question
+    # display_question(questions, 'smooth-or-featured')
+    #     smooth_featured_answers = questions.question_values['smooth-or-featured']
+    #     if smooth_featured_answers['smooth'] > 0.5:
+    #         branch 
 
-    galaxies = df
-    logging.info('Total galaxies: {}'.format(len(galaxies)))
-    valid = np.ones(len(df)).astype(bool)
-    for question, answers in questions.items():
-        answer, mean = current_selection.get(question, [None, None])  # mean is (min, max) limits
-        logging.info(f'Current: {question}, {answer}, {mean}')
-        if mean == None:  # happens when spiral count question not relevant
-            mean = (None, None)
-        if len(mean) == 1:
-            # streamlit sharing bug is giving only the higher value
-            logging.info('Streamlit bug is happening, working')
-            mean = (0., mean[0])
-        if (answer is not None) and (mean is not None):
-            answer_col = question + '_' + answer + '_fraction'
-            this_answer = galaxies[answer_col]
-            # all_answers = galaxies[[question + '_' + a + '_fraction' for a in answers]].sum(axis=1)
-            # prob = this_answer / all_answers
-            # within_limits = (np.min(mean) <= prob) & (prob <= np.max(mean))
-            within_limits = (np.min(mean) <= this_answer) & (this_answer <= np.max(mean))
+        
+    for question in questions.question_dict.keys():
+        display_question(questions, question)
 
-            logging.info('Fraction of galaxies within limits: {}'.format(within_limits.mean()))
-            valid = valid & within_limits # & preceding
+    logging.info(questions.question_values)
 
-    logging.info('Valid galaxies: {}'.format(valid.sum()))
-    st.markdown('{:,} of {:,} galaxies match your criteria.'.format(valid.sum(), len(valid)))
+    is_valid = find_valid_galaxies(df, questions)
+    logging.info('Valid galaxies: {}'.format(is_valid.sum()))
 
-    # selected = galaxies[valid].sample(np.min([valid.sum(), 16]))
+    # with col1:
+    # extra_filters = st.toggle('Extra filters', value=False)
+    col1, _, _, _ = st.columns(4)
+    with col1:
+        view_preference = st.selectbox('View mode', ['Prioritise Large', 'Custom Filters'])
 
-    # selected = galaxies[valid][:40]
-    # max out at
-    selected = galaxies[valid].nlargest(40, 'cutout_width_arcsec')
+    if view_preference == 'Custom Filters':
+        col1, col2, _, _ = st.columns(4)
+        with col1:
+                # actually this is area, roughly, via A = pi r **2 
+                # min_radius = st.number_input('Minimum radius (arcsec)', min_value=7., value=30.)
+                # min_area = np.pi * min_radius ** 2 # approx
+            min_area = st.number_input('Minimum galaxy area (pixels, 0.1"/px)', min_value=700., value=3000.)
+        with col2:
+            faintest_mag = st.number_input('Faintest VIS mag', min_value=12., max_value=30., value=20.5)
 
+        above_min_area = df['segmentation_area'] > min_area
+        bright_enough = df['mag_segmentation'] < faintest_mag
+        # bright_enough = True
+        is_valid = is_valid & above_min_area & bright_enough
+        selected = df[is_valid].sample(np.min([is_valid.sum(), 16]))
+
+    elif view_preference == 'Prioritise Large':
+        selected = df[is_valid].nlargest(40, 'cutout_width_arcsec')
+    else:
+        raise ValueError(view_preference)
+
+    st.markdown('{:,} of {:,} galaxies match your criteria.'.format(is_valid.sum(), len(is_valid)))
+
+    display_galaxies_via_html(selected)
+
+    # display_galaxies_via_streamlit(selected)
+
+def display_galaxies_via_streamlit(df, ncols=4, width=200):
+    df['url'] = get_urls(df)
+    urls = list(df['url'])
+    captions = list(df['id_str'])
+    # st.image(urls, caption=captions, width=200)
+    # opening_html = '<div style=display:flex;flex-wrap:wrap>'
+    # closing_html = '</div>'
+
+    # st.html(opening_html)
+
+    st.markdown("""
+        <style>
+        h1 {
+            font-size: 16px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+    for i, row in df.iterrows():
+        st.image(row['url'], caption=row['id_str'], width=200)
+
+    # st.html(closing_html)
+
+    # columns = st.columns(ncols)
+    # for i, col in enumerate(columns):
+    #     with col:
+    #         st.image(urls[i], caption=captions[i], use_container_width=True)
+
+def display_galaxies_via_html(df):
     # https://storage.googleapis.com/zootasks_test_us/euclid/q1_v5/cutouts_jpg_gz_arcsinh_vis_y/102018667/102018667_NEG585598010511040774_gz_arcsinh_vis_y.jpg
-    selected['tile_index'] = selected['id_str'].apply(lambda x: x.split('_')[2])
-    selected['adjusted_id_str'] = selected['id_str'].apply(lambda x: x.replace('-', 'NEG').replace('Q1_R1_', ''))
-    selected['url'] = f'https://storage.googleapis.com/zootasks_test_us/euclid/q1_v5/cutouts_jpg_gz_arcsinh_vis_y/' + selected['tile_index'] + '/' + selected['adjusted_id_str'] + '_gz_arcsinh_vis_y.jpg'
-    image_urls = selected['url']
+    image_urls = get_urls(df)
+    # image_urls = df['url']
+
+    st.markdown("""
+        <style>
+        img:hover {
+            border: 5px solid #3498db;
+            border-radius: 5px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
     opening_html = '<div style=display:flex;flex-wrap:wrap>'
     closing_html = '</div>'
-    child_html = ['<img src="{}" style=margin:3px;width:200px;></img>'.format(url) for url in image_urls]
+    # child_html = [f'<a href="{url}"><img src="{url}" style=margin:3px;width:200px;></img></a>' for url in image_urls]
+    child_html = [
+        f'<div><img src="{url}" style=margin:3px;width:200px;></img><button>test</button></div>'
+        for url in image_urls]
 
     gallery_html = opening_html
     for child in child_html:
@@ -194,59 +197,60 @@ def interactive_galaxies(df):
 
     # st.markdown(gallery_html)
     st.markdown(gallery_html, unsafe_allow_html=True)
-    # st.markdown('<img src="{}"></img>'.format(child_html), unsafe_allow_html=True)
-    # for image in images:
-    #     st.image(image, width=250)
 
+def get_urls(df):
+    df['tile_index'] = df['id_str'].apply(lambda x: x.split('_')[2])
+    df['adjusted_id_str'] = df['id_str'].apply(lambda x: x.replace('-', 'NEG').replace('Q1_R1_', ''))
+    image_urls = f'https://storage.googleapis.com/zootasks_test_us/euclid/q1_v5/cutouts_jpg_gz_arcsinh_vis_y/' + df['tile_index'] + '/' + df['adjusted_id_str'] + '_gz_arcsinh_vis_y.jpg'
+    return image_urls
 
+def find_valid_galaxies(df, questions):
 
+    logging.debug('Total galaxies: {}'.format(len(df)))
+    valid = np.ones(len(df)).astype(bool)  # all df are valid to start with, we will require AND for each filter
+
+    for question, answer_limit_pairs in questions.question_values.items():
+        # logging.debug(f'Current: {question}, {answer_limit_pairs}')
+ 
+        # logging.debug('answer limit pairs: {}'.format(answer_limit_pairs))
+        for answer, limit_pairs in answer_limit_pairs.items():
+            logging.debug('{} limit pairs: {}'.format(question, limit_pairs))
+            answer_col = question + '_' + answer + '_fraction'
+            this_answer = df[answer_col]
+            slider_not_used = limit_pairs[0] == 0 and limit_pairs[1] == 1
+            within_limits = (limit_pairs[0] <= this_answer) & (this_answer <= limit_pairs[1])
+
+            valid = valid & (slider_not_used or within_limits)
+
+    logging.debug('Valid galaxies: {}'.format(valid.sum()))
+    return valid
+
+def display_question(questions, question):
+
+    answers = list(questions.question_dict[question].keys())
+    logging.warning('answers: {}'.format(answers))
+    # will be displayed, even though not explicitly used
+    selected_question = st.sidebar.markdown('## ' + question.replace('-', ' ').replace('_', ' ').capitalize() + '?')
+    # returns the selected option
+    selected_answer = st.sidebar.selectbox('Answer', answers, format_func=lambda x: x.replace('-',' ').capitalize(), key=question+'_select')
+    # we don't need the key, only the limits
+    selected_limits = st.sidebar.slider(
+                label='Vote Fraction',
+                min_value=0.,
+                max_value=1.,
+                value=(.0, 1.),
+                key=question+'_slider')
     
+    logging.debug('before edit: {}'.format(selected_limits))
+    assert not isinstance(selected_limits, float)
 
-# def show_predictions(galaxy, question, answers, answer): 
+    # if isinstance(selected_limits, float):
+    # #     # streamlit is giving only the higher value since only higher end modified
+    #     logging.warning('{} {}'.format(question, selected_limits))
+    #     selected_limits = np.array((0., selected_limits))
+    #     logging.debug('after edit: {}'.format(selected_limits))
 
-#     answer_index = answers.index(answer) 
-#     # st.markdown(answer_index)
-
-#     fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2, figsize=(10, 3 * 1))
-
-#     total_votes = np.array(galaxy[question + '_total-votes']).astype(np.float32)  # TODO
-#     votes = np.linspace(0., total_votes)
-#     x = np.stack([votes, total_votes-votes], axis=-1)  # also need the counts for other answer, no
-#     votes_this_answer = x[:, answer_index]
-
-#     cycler = mpl.rcParams['axes.prop_cycle']
-#     # https://matplotlib.org/cycler/
-#     colors = [c['color'] for c in cycler]
-
-#     data =  [json.loads(galaxy[question + '_' + a + '_concentration']) for a in answers]
-#     all_samples = np.array(data).transpose(1, 0, 2)
-
-#     ax = ax0
-#     for model_n, samples in enumerate(all_samples):
-#         all_probs = []
-#         color = colors[model_n]
-#         n_samples = samples.shape[1]  # answer, dropout
-#         for d in range(n_samples):
-#             concentrations = tf.constant(samples[:, d].astype(np.float32))  # answer, dropout
-#             probs = tfp.distributions.DirichletMultinomial(total_votes, concentrations).prob(x)
-#             all_probs.append(probs)
-#             ax.plot(votes_this_answer, probs, alpha=.15, color=color)
-#         mean_probs = np.array(all_probs).mean(axis=0)
-#         ax.plot(votes_this_answer, mean_probs, linewidth=2., color=color)
-
-#     volunteer_response = galaxy[question + '_' + answer]
-#     ax.axvline(volunteer_response, color='k', linestyle='--')
-        
-#     ax.set_xlabel(question.capitalize().replace('-', ' ') + ' "' + answer.capitalize().replace('-', ' ') + '" count')
-#     ax.set_ylabel(r'$p$(count)')
-
-#     ax = ax1
-#     # ax.imshow(np.array(Image.open(galaxy['file_loc'].replace('/media/walml/beta/decals/png_native', 'png'))))
-#     ax.imshow(np.array(Image.open(galaxy['file_loc'].replace('/media/walml/beta/decals/png_native', '/media/walml/beta1/galaxy_zoo/gz2'))))
-#     ax.axis('off')
-        
-#     fig.tight_layout()
-#     st.write(fig)
+    questions.question_values[question][selected_answer] = selected_limits
 
 
 st.set_page_config(
@@ -259,7 +263,7 @@ st.set_page_config(
 def load_data():
     df = pd.read_parquet('morphology_catalogue_minimal.parquet')
 
-    df = df.dropna(subset=['has-spiral-arms_yes_fraction'])  # temp, only look at featured galaxies (new slider needed?)
+    # df = df.dropna(subset=['has-spiral-arms_yes_fraction'])  # temp, only look at featured galaxies (new slider needed?)
     # max out cutout size, don't want to blow up bandwidth
     df['cutout_width_arcsec'] = df['cutout_width_arcsec'].clip(upper=130)  # 112 = 90th pc, 147 = 95th
     return df
@@ -267,11 +271,20 @@ def load_data():
 
 if __name__ == '__main__':
 
-    logging.basicConfig(level=logging.CRITICAL)
+    # logging.basicConfig(level=logging.CRITICAL)
+    logging.basicConfig(level=logging.INFO)
+
+
+
+    questions = Questions('featured')
 
     df = load_data()
-
     main(df)
+
+    # import streamlit as st
+
+    # values = st.slider("Select a range of values", 0.0, 100.0, (25.0, 75.0))
+    # st.write("Values:", values)
 
 
 # https://discuss.streamlit.io/t/values-slider/9434 streamlit sharing has a temp bug that sliders only show the top value
