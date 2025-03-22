@@ -7,16 +7,16 @@ import numpy as np
 import pandas as pd
 
 def main(df):
-    st.title('Galaxy Zoo Euclid')
+    st.title('Euclid Explorer')
     st.subheader('by Mike Walmsley')
 
     st.markdown(
     """
-    Galaxy Zoo Euclid includes deep learning classifications for all galaxies. Our model learns from volunteers and predicts answers for every Galaxy Zoo question.
+    Euclid Q1 includes deep learning classifications for the visual appearance of all bright or extended galaxies. Our model learns from Galaxy Zoo volunteers and predicts what they would say for each galaxy.
 
     Explore the predictions using the filters on the left. Do you agree with the model?
 
-    To read more about how the model works, check out the [Scaling Laws preprint]() and the [Euclid paper]().
+    To read more about how the model works, check out the [Scaling Laws preprint](https://arxiv.org/abs/2404.02973) and the [Euclid preprint](https://arxiv.org/abs/2503.15310).
     """
     )
     interactive_galaxies(df)
