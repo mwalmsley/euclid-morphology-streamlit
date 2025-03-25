@@ -16,7 +16,7 @@ def main(df):
 
     Explore the predictions using the filters on the left. Do you agree with the model?
 
-    Click each cutout to expand. Click the coordinates to go to ESASky.
+    Click each cutout to expand. Click the coordinates to go to ESASky (if it fails to load, you may need to press refresh while holding shift). 
 
     To read more about how the model works, check out the [Scaling Laws preprint](https://arxiv.org/abs/2404.02973) and the [Euclid preprint](https://arxiv.org/abs/2503.15310).
     """
