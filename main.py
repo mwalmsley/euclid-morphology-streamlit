@@ -16,6 +16,8 @@ def main(df):
 
     Explore the predictions using the filters on the left. Do you agree with the model?
 
+    Click each cutout to expand. Click the coordinates to go to ESASky.
+
     To read more about how the model works, check out the [Scaling Laws preprint](https://arxiv.org/abs/2404.02973) and the [Euclid preprint](https://arxiv.org/abs/2503.15310).
     """
     )
@@ -213,7 +215,7 @@ def display_galaxies_via_html(df):
                     <a href={row['url']}><img src="{row['url']}";></img></a>
                     <div>
                     <center>
-                        <a href={get_legacy_url(row['right_ascension'], row['declination'])}>
+                        <a href={get_esasky_url(row['right_ascension'], row['declination'])}>
                             <input type="submit" value=" {row['right_ascension']:.4f}, {row['declination']:.4f} "></input>
                         </a>
                         </center>
@@ -299,24 +301,28 @@ def load_data():
     df['cutout_width_arcsec'] = df['cutout_width_arcsec'].clip(upper=130)  # 112 = 90th pc, 147 = 95th
     return df
 
-def get_field(declination):
-    if declination > 40:
-        return 'EDFN'
-    elif declination > -20:
-        return 'TODO'  # not on esa sky
-    elif declination < -40:
-        return 'EDFF'
-    else:
-        return 'EDFS'
+# def get_field(declination):
+#     if declination > 40:
+#         return 'EDFN'
+#     elif declination > -20:
+#         return 'TODO'  # not on esa sky
+#     elif declination < -40:
+#         return 'EDFF'
+#     else:
+#         return 'EDFS'
 
 def get_esasky_url(ra, dec):
     logging.info(f'ra: {ra}, dec: {dec}')
     # hips_name = 'Q1-EDFS-R4-PNG-RGB'
-    image_name = get_field(dec)
-    # esasky example
-# https://sky.esa.int/esasky/?target=61.091466763768565%20-47.95083211877482&hips=Q1-EDFS-R4-PNG-RGB&fov=0.24313710346433015&projection=TAN&cooframe=J2000&sci=false&lang=en&euclid_image=EDFS
-
-    url = f'https://sky.esa.int/esasky/?target={ra}%20{dec}&hips=Q1-{image_name.upper()}-R4-PNG-RGB&fov=0.01&projection=TAN&cooframe=J2000&sci=false&lang=en&euclid_image={image_name}'
+    # image_name = get_field(dec)
+    # esasky old example
+    # https://sky.esa.int/esasky/?target=61.091466763768565%20-47.95083211877482&hips=Q1-EDFS-R4-PNG-RGB&fov=0.24313710346433015&projection=TAN&cooframe=J2000&sci=false&lang=en&euclid_image=EDFS
+    # url = f'https://sky.esa.int/esasky/?target={ra}%20{dec}&hips=Q1-{image_name.upper()}-R4-PNG-RGB&fov=0.01&projection=TAN&cooframe=J2000&sci=false&lang=en&euclid_image={image_name}'
+    
+    
+    # new example from Debbie
+    # https://sky.esa.int/esasky/?hide_welcome=true&hide_banner_info=true&target=51.817%20-29.161700000000003&hips=Euclid+VIS&fov=0.010889682677014798&projection=TAN&cooframe=J2000&sci=false&lang=en
+    url = f'https://sky.esa.int/esasky/?hide_welcome=true&hide_banner_info=true&target={ra}%20{dec}&hips=Euclid+VIS&fov=0.010889682677014798&projection=TAN&cooframe=J2000&sci=false&lang=en'
     logging.info(url)
     return url
 
